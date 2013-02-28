@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+
+<!--
+  Google HTML5 slide template
+
+  Authors: Luke Mahé (code)
+           Marcin Wichary (code and design)
+           
+           Dominic Mazzoni (browser compatibility)
+           Charles Chen (ChromeVox support)
+
+  URL: http://code.google.com/p/html5slides/
+-->
+
+<html>
+  <head>
+    <title>OLX | SMAUG</title>
+
+    <meta charset='utf-8'>
+    <script
+      src='slides.js'></script>
+  </head>
+  
+  <style>
+    .slides.template-default article.biglogo {
+	  background: white url(olx-logo.png) 50% 50% no-repeat !important;
+	}
+	
+	.slides.template-default > article:not(.nobackground):not(.biglogo) {
+	background: url(olx-logo-small.png) 765px 560px no-repeat !important;
+	background-color: white !important;
+	}    
+    
+  </style>
+
+  <body style='display: none'>
+
+    <section class='slides layout-regular template-default'>
+      
+      <!-- Your slides (<article>s) go here. Delete or comment out the
+           slides below. -->
+              
+      <article class='biglogo'>
+      </article>
+
+      <article>
+        <h1>
+          SMAUG <br />
+        </h1>
+        <p>
+          Scalable Mobile Application Unified Gateway <br>          
+        </p>
+      </article>
+
+      <article>
+        <h3>
+          SMAUG
+        </h3>
+        <h4>
+          Advantages
+        </h4>
+        <ul>
+    			<li>Unified interface in the data layer</li>
+          <li>No more contact with legacy code</li>
+          <li>None blocking architecture</li>
+          <li>New design + TDD -> Safer coding + Scalability</li>
+          <li>Deployment pipeline -> Faster development times</li>
+          <li>New design simplifies client apps -> Happy croatians</li>
+          <li>Ability to switch service providers on the fly</li>
+  		</ul>
+      </article>
+
+      <article>
+        <h3>
+          Application Flow
+        </h3>
+        <div style="text-align: center">
+          <img src="smaug_flowchart.jpg"></img>
+        </div>
+      </article>
+
+      <article>
+        <h3>
+          Controller Flow - Part I
+        </h3>
+        <pre style="font-size:14px; line-height:18px">        
+        object Item extends Controller with SmaugController {
+
+        def get(id: Long) = Action {
+          Async {
+            try{
+                generateResult(getItemInAnotherThread(id))
+              }catch{
+                case _ => Promise.pure(InternalServerError("Internal Server Error: unknown server error"))
+        ...
+
+        def generateResult(promiseOfJsValue: Promise[JsValue]): Promise[Result] = {
+          promiseOfJsValue.orTimeout("Backend failed", 2000).map{ resultOrTimeout =>{
+              resultOrTimeout.fold(
+                result => Ok(result).withHeaders(arwenHeaderMap :_*),
+                timeout => InternalServerError(timeout)
+        ...
+
+      </pre>
+    </article>
+
+    <article>
+      <h3>
+          Controller Flow - Part II
+      </h3>
+      <pre style="font-size:14px; line-height:18px">
+        def getItemInAnotherThread(id: Long): Promise[JsValue] = {
+          Akka.future{
+                getItemFromRouter(id)
+          }.flatMap{ x => x}
+        ...
+
+        def getItemFromRouter(id: Long): Promise[JsValue] = {
+          provider.get(id).map{ item => item match {
+            case ValidResource(content) => content.json
+            case e : ErrorResource => errorToJsValue(e)
+            }
+        ...
+
+        </pre>
+      </article>
+
+      <article>
+        <h3>
+          Resource Provider
+        </h3>
+        <pre style="font-size:14px; line-height:18px">
+          class ResourceResolver {
+            def getItemResourceProvider(id: String): ItemResourceProvider = id match {
+              case "item_ocl" => new OCLItemResourceProvider()
+              case "item_api" => LegacyAPIItemResourceProvider()
+              case "item_mock" => new MockItemResourceProvider()
+              case _ => throw new Exception("Invalid backend requested -> " + id)
+            }
+
+            def getCategoryResourceProvider(id: String): CategoryResourceProvider = id match {
+              case "category_api" => LegacyAPICategoryResourceProvider()
+              case "category_mock" => new MockCategoryResourceProvider()
+              case _ => throw new Exception("Invalid backend requested -> " + id)
+            }
+
+            def getSearchResourceProvider(id:String): SearchResourceProvider = id match {
+              case _ => new MockSearchResourceProvider()
+            }
+          }
+        </pre>
+      </article>
+
+      <article>
+        <h3>
+          Endpoint
+        </h3>
+        <h5>Endpoints for each service provider (eg. API, ABL, SAL, etc)</h5>
+        <pre style="font-size:14px; line-height:18px">
+          trait Endpoint{
+  
+            val baseUrl: Url
+
+            def executeCall(url: Url, headers:Seq[(String, String)] = Seq()):Promise[Response] = {
+              WS.url(baseUrl+url).withHeaders(headers :_*).get.map{
+                response => {
+                  Response(response)
+                }
+              }
+            }
+          }
+        </pre>
+      </article>
+
+      <article>
+        <div style="text-align: center; height:100%; vertical-align:middle; padding-top: 100px;">
+          <img style="width: 550px" src="Smaug_eye.jpg"></img>
+        </div>
+      </article>
+
+    </section>
+
+  </body>
+</html>
